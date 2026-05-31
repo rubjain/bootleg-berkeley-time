@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4efe6;
+  --foreground: #1b2430;
+  --surface: rgba(255, 252, 246, 0.84);
+  --surface-strong: #fffdf8;
+  --surface-ink: #273247;
+  --border-soft: rgba(39, 50, 71, 0.12);
+  --accent: #c96f4a;
+  --accent-deep: #8a3f20;
+  --highlight: #1d6b6d;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(201, 111, 74, 0.18), transparent 24%),
+    radial-gradient(circle at 85% 10%, rgba(29, 107, 109, 0.14), transparent 18%),
+    radial-gradient(circle at 50% 100%, rgba(85, 98, 133, 0.12), transparent 28%),
+    linear-gradient(180deg, #f7f0e6 0%, #f2eee7 44%, #ece8e1 100%);
+  color: var(--foreground);
+  font-family: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  min-height: 100vh;
+}
+
+a {
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(201, 111, 74, 0.22);
+}

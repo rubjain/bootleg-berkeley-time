@@ -1,0 +1,810 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProgramType {
+  MAJOR
+  MINOR
+  CERTIFICATE
+}
+
+enum RequirementSourceType {
+  UNIVERSITY_CATALOG
+  DEPARTMENT_PAGE
+  COLLEGE_PAGE
+  SCHOOL_PAGE
+  MANUAL_REVIEW
+  IMPORTER_OVERRIDE
+}
+
+enum RequirementSyncStatus {
+  PENDING
+  PARSED
+  REVIEW_REQUIRED
+  APPROVED
+  FAILED
+}
+
+enum ConfidenceLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TermSeason {
+  SPRING
+  SUMMER
+  FALL
+  WINTER
+}
+
+enum DataStatus {
+  OFFICIAL
+  HISTORICAL
+  PROJECTED
+  MANUAL_PLACEHOLDER
+}
+
+enum OfferingStatus {
+  OPEN
+  CLOSED
+  WAITLIST
+  PLANNED
+  PROJECTED
+}
+
+enum RequirementRuleType {
+  REQUIRED_COURSE
+  CHOOSE_N_COURSES
+  MIN_UNITS
+  CATEGORY_ELECTIVE
+  COURSE_SERIES
+  EXTERNAL_NOTE
+}
+
+enum RelationshipType {
+  PREREQUISITE
+  COREQUISITE
+  ALTERNATIVE
+  RECOMMENDED_AFTER
+}
+
+enum PlanCourseStatus {
+  PLANNED
+  COMPLETED
+  IN_PROGRESS
+}
+
+enum CourseHistoryStatus {
+  COMPLETED
+  IN_PROGRESS
+  PLANNED
+  DROPPED
+}
+
+enum AuthProviderType {
+  EMAIL
+  GOOGLE
+  BERKELEY_MOCK
+  CALNET_CAS
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+}
+
+enum PlanVisibility {
+  PRIVATE
+  FRIENDS_ONLY
+  PUBLIC
+}
+
+enum MessagePermission {
+  NO_ONE
+  FRIENDS_ONLY
+  ANYONE
+}
+
+enum ThreadType {
+  DIRECT
+  COURSE_SHARE
+  PLAN_SHARE
+}
+
+enum ReviewReasonTag {
+  EASY_BREADTH
+  GOOD_PROFESSOR
+  IMPORTANT_FOR_MAJOR
+  INTERESTING_CLASS
+  MANAGEABLE_WORKLOAD
+  USEFUL_ELECTIVE
+}
+
+enum ReviewSortMode {
+  MOST_RECENT
+  MOST_HELPFUL
+  HIGHEST_RATED
+  HARDEST
+  EASIEST
+}
+
+enum CourseFeedbackTag {
+  EXAM_HEAVY
+  PROJECT_HEAVY
+  ATTENDANCE_REQUIRED
+  EASY_A
+  CONCEPTUALLY_HARD
+  TIME_CONSUMING
+  GREAT_PROFESSOR
+  DISORGANIZED
+}
+
+enum ReportTargetType {
+  MESSAGE
+  COURSE_REVIEW
+  DISCUSSION_POST
+  DISCUSSION_COMMENT
+  USER
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ProgramSelectionType {
+  PRIMARY_MAJOR
+  SECOND_MAJOR
+  SIMULTANEOUS_MAJOR
+  MINOR
+  CERTIFICATE
+}
+
+model School {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  shortName   String
+  slug        String       @unique
+  city        String?
+  state       String?
+  website     String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  departments Department[]
+  courses     Course[]
+  terms       Term[]
+  instructors Instructor[]
+  programs    Program[]
+  requirementSources RequirementSource[]
+  users       User[]
+  plans       UserPlan[]
+}
+
+model Department {
+  id          String       @id @default(cuid())
+  schoolId    String
+  code        String
+  name        String
+  slug        String
+  website     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  courses     Course[]
+  instructors Instructor[]
+  programs    Program[]
+
+  @@unique([schoolId, code])
+  @@unique([schoolId, slug])
+}
+
+model Course {
+  id                 String               @id @default(cuid())
+  schoolId           String
+  departmentId       String
+  code               String
+  slug               String               @unique
+  title              String
+  description        String               @db.Text
+  unitsMin           Float
+  unitsMax           Float
+  level              String
+  breadthTags        String[]
+  requirementTags    String[]
+  prerequisitesText  String?
+  dataStatus         DataStatus           @default(OFFICIAL)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  school             School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department         Department           @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  offerings          CourseOffering[]
+  gradeDistributions GradeDistribution[]
+  enrollmentHistory  EnrollmentHistory[]
+  relationshipsFrom  CourseRelationship[] @relation("RelationshipFrom")
+  relationshipsTo    CourseRelationship[] @relation("RelationshipTo")
+  plannedCourses     PlannedCourse[]
+  userCourseHistory  UserCourseHistory[]
+  favoritedByUsers   UserFavoriteCourse[]
+  reviews            CourseReview[]
+  discussionPosts    CourseDiscussionPost[]
+}
+
+model Term {
+  id                 String            @id @default(cuid())
+  schoolId           String
+  code               String
+  slug               String            @unique
+  name               String
+  season             TermSeason
+  year               Int
+  startsAt           DateTime?
+  endsAt             DateTime?
+  isFuture           Boolean           @default(false)
+  isProjected        Boolean           @default(false)
+  dataStatus         DataStatus        @default(OFFICIAL)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  school             School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  offerings          CourseOffering[]
+  gradeDistributions GradeDistribution[]
+  enrollmentHistory  EnrollmentHistory[]
+  courseHistory      UserCourseHistory[]
+  plannedCourses     PlannedCourse[]
+
+  @@unique([schoolId, code])
+}
+
+model CourseOffering {
+  id              String                   @id @default(cuid())
+  courseId        String
+  termId          String
+  sectionCode     String
+  component       String
+  instructorText  String?
+  location        String?
+  meetingDays     String?
+  timeStart       String?
+  timeEnd         String?
+  capacity        Int?
+  enrolled        Int?
+  waitlist        Int?
+  seatsReserved   Int?
+  status          OfferingStatus          @default(PLANNED)
+  isProjected     Boolean                 @default(false)
+  projectedReason String?
+  dataStatus      DataStatus              @default(OFFICIAL)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  course          Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term            Term                    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  instructors     CourseOfferingInstructor[]
+
+  @@unique([termId, courseId, sectionCode])
+}
+
+model CourseOfferingInstructor {
+  id               String         @id @default(cuid())
+  courseOfferingId String
+  instructorId     String
+  role             String?
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  instructor       Instructor     @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@unique([courseOfferingId, instructorId])
+}
+
+model Instructor {
+  id                 String                   @id @default(cuid())
+  schoolId           String
+  departmentId       String?
+  externalKey        String?
+  rmpProfessorId     String?
+  name               String
+  slug               String                   @unique
+  bio                String?                  @db.Text
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  school             School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department         Department?              @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  ratings            ProfessorRating[]
+  offeringLinks      CourseOfferingInstructor[]
+  gradeDistributions GradeDistribution[]
+}
+
+model ProfessorRating {
+  id                String       @id @default(cuid())
+  instructorId      String
+  sourceName        String
+  rating            Float?
+  averageDifficulty Float?
+  reviewCount       Int?
+  sentimentSummary  String?
+  sourceUrl         String?
+  dataStatus        DataStatus   @default(MANUAL_PLACEHOLDER)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  instructor        Instructor   @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+}
+
+model Program {
+  id                 String                 @id @default(cuid())
+  schoolId           String
+  departmentId       String?
+  code               String
+  name               String
+  slug               String                 @unique
+  type               ProgramType
+  degreeLabel        String?
+  overview           String                 @db.Text
+  unitMinimum        Int?
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  school             School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department         Department?            @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  requirementSources RequirementSource[]
+  requirementSets    ProgramRequirementSet[]
+  userSelections     UserProgramSelection[]
+
+  @@unique([schoolId, code, type])
+}
+
+model RequirementSource {
+  id              String                @id @default(cuid())
+  schoolId        String
+  programId       String
+  sourceUrl       String
+  sourceType      RequirementSourceType
+  parserKey       String?
+  parserStatus    RequirementSyncStatus @default(PENDING)
+  lastSyncedAt    DateTime?
+  notes           String?               @db.Text
+  confidence      ConfidenceLevel       @default(MEDIUM)
+  rawSnapshotJson Json?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  school          School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  program         Program               @relation(fields: [programId], references: [id], onDelete: Cascade)
+  requirementSets ProgramRequirementSet[]
+}
+
+model ProgramRequirementSet {
+  id            String                @id @default(cuid())
+  programId     String
+  sourceId      String?
+  versionLabel  String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean               @default(false)
+  notes         String?               @db.Text
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  program       Program               @relation(fields: [programId], references: [id], onDelete: Cascade)
+  source        RequirementSource?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  categories    RequirementCategory[]
+}
+
+model RequirementCategory {
+  id               String                @id @default(cuid())
+  requirementSetId String
+  title            String
+  slug             String
+  description      String?               @db.Text
+  minUnits         Int?
+  minCourses       Int?
+  displayOrder     Int                   @default(0)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  requirementSet   ProgramRequirementSet @relation(fields: [requirementSetId], references: [id], onDelete: Cascade)
+  rules            RequirementRule[]
+}
+
+model RequirementRule {
+  id                     String              @id @default(cuid())
+  categoryId             String
+  ruleType               RequirementRuleType
+  title                  String
+  description            String?             @db.Text
+  minSelect              Int?
+  minUnits               Int?
+  courseCodes            String[]
+  allowedDepartmentCodes String[]
+  allowedTags            String[]
+  prerequisiteRuleJson   Json?
+  overlapTag             String?
+  sourceRefText          String?
+  displayOrder           Int                 @default(0)
+  inferred               Boolean             @default(false)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  category               RequirementCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  optionGroups           RequirementOptionGroup[]
+}
+
+model RequirementOptionGroup {
+  id                    String          @id @default(cuid())
+  ruleId                String
+  title                 String
+  minSelect             Int?
+  maxSelect             Int?
+  notes                 String?         @db.Text
+  optionCourseCodes     String[]
+  optionTags            String[]
+  optionDepartmentCodes String[]
+  sourceRefText         String?
+  displayOrder          Int             @default(0)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  rule                  RequirementRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+model GradeDistribution {
+  id            String      @id @default(cuid())
+  courseId      String
+  instructorId  String?
+  termId        String?
+  averageGpa    Float?
+  totalStudents Int?
+  distribution  Json
+  dataStatus    DataStatus  @default(HISTORICAL)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  course        Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor    Instructor? @relation(fields: [instructorId], references: [id], onDelete: SetNull)
+  term          Term?       @relation(fields: [termId], references: [id], onDelete: SetNull)
+}
+
+model EnrollmentHistory {
+  id               String     @id @default(cuid())
+  courseId         String
+  termId           String
+  phaseLabel       String
+  capacity         Int?
+  enrolled         Int?
+  waitlist         Int?
+  reservedSeatRisk Boolean    @default(false)
+  fillRateBucket   String?
+  filledAtDays     Int?
+  dataStatus       DataStatus @default(HISTORICAL)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  course           Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term             Term       @relation(fields: [termId], references: [id], onDelete: Cascade)
+}
+
+model CourseRelationship {
+  id           String           @id @default(cuid())
+  fromCourseId String
+  toCourseId   String
+  type         RelationshipType
+  reason       String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  fromCourse   Course           @relation("RelationshipFrom", fields: [fromCourseId], references: [id], onDelete: Cascade)
+  toCourse     Course           @relation("RelationshipTo", fields: [toCourseId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                String                 @id @default(cuid())
+  schoolId          String?
+  email             String                 @unique
+  passwordHash      String?
+  name              String?
+  authProvider      AuthProviderType       @default(EMAIL)
+  role              UserRole               @default(USER)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  school            School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  accounts          AuthAccount[]
+  courseHistory     UserCourseHistory[]
+  favoriteCourses   UserFavoriteCourse[]
+  programSelections UserProgramSelection[]
+  plans             UserPlan[]
+  sentFriendRequests FriendRequest[]       @relation("SentFriendRequests")
+  receivedFriendRequests FriendRequest[]   @relation("ReceivedFriendRequests")
+  friendshipsAsUserA Friendship[]          @relation("FriendshipUserA")
+  friendshipsAsUserB Friendship[]          @relation("FriendshipUserB")
+  privacySettings   UserPrivacySettings?
+  messageThreadParticipants MessageThreadParticipant[]
+  sentMessages      Message[]              @relation("SentMessages")
+  courseReviews     CourseReview[]
+  courseReviewVotes CourseReviewVote[]
+  discussionPosts   CourseDiscussionPost[]
+  discussionComments CourseDiscussionComment[]
+  blockedUsers      UserBlock[]            @relation("BlockingUser")
+  blockedByUsers    UserBlock[]            @relation("BlockedUser")
+  filedReports      ContentReport[]        @relation("FiledReports")
+  contentReports    ContentReport[]        @relation("ReportedUser")
+}
+
+model AuthAccount {
+  id                  String           @id @default(cuid())
+  userId              String
+  provider            AuthProviderType
+  providerAccountId   String
+  accessToken         String?
+  refreshToken        String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model UserCourseHistory {
+  id        String              @id @default(cuid())
+  userId    String
+  courseId  String
+  termId    String?
+  status    CourseHistoryStatus
+  grade     String?
+  units     Float?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term      Term?               @relation(fields: [termId], references: [id], onDelete: SetNull)
+}
+
+model UserProgramSelection {
+  id            String               @id @default(cuid())
+  userId        String
+  programId     String
+  selectionType ProgramSelectionType
+  isPrimary     Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program       Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programId, selectionType])
+}
+
+model UserFavoriteCourse {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+model UserPlan {
+  id          String            @id @default(cuid())
+  userId      String
+  schoolId    String
+  title       String
+  catalogYear String?
+  isPrimary   Boolean           @default(false)
+  visibility  PlanVisibility    @default(PRIVATE)
+  notes       String?           @db.Text
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  semesters   PlannedSemester[]
+}
+
+model PlannedSemester {
+  id          String          @id @default(cuid())
+  planId      String
+  label       String
+  yearIndex   Int
+  season      TermSeason
+  unitsTarget Int?
+  sortOrder   Int
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  plan        UserPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  courses     PlannedCourse[]
+}
+
+model PlannedCourse {
+  id            String           @id @default(cuid())
+  semesterId    String
+  courseId      String
+  plannedTermId String?
+  status        PlanCourseStatus @default(PLANNED)
+  notes         String?
+  lockRuleId    String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  semester      PlannedSemester  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  plannedTerm   Term?            @relation(fields: [plannedTermId], references: [id], onDelete: SetNull)
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  userAId     String
+  userBId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userA       User     @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB       User     @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+}
+
+model FriendRequest {
+  id            String              @id @default(cuid())
+  senderId      String
+  receiverId    String
+  status        FriendRequestStatus @default(PENDING)
+  message       String?             @db.Text
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  respondedAt   DateTime?
+  sender        User                @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver      User                @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+model UserPrivacySettings {
+  id                        String            @id @default(cuid())
+  userId                    String            @unique
+  showMajorsToFriends       Boolean           @default(true)
+  showPlansToFriends        Boolean           @default(false)
+  showSchedulesToFriends    Boolean           @default(false)
+  shareProfileWithFriends   Boolean           @default(true)
+  allowCoursePlanComparison Boolean           @default(false)
+  messagePermission         MessagePermission @default(FRIENDS_ONLY)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  user                      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MessageThread {
+  id              String                     @id @default(cuid())
+  type            ThreadType                 @default(DIRECT)
+  title           String?
+  sharedCourseId  String?
+  sharedPlanId    String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  participants    MessageThreadParticipant[]
+  messages        Message[]
+}
+
+model MessageThreadParticipant {
+  id          String        @id @default(cuid())
+  threadId    String
+  userId      String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  thread      MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  threadId       String
+  senderId       String
+  body           String       @db.Text
+  sharedCourseId String?
+  sharedPlanId   String?
+  isEdited       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  thread         MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model CourseReview {
+  id                    String              @id @default(cuid())
+  courseId              String
+  userId                String
+  title                 String?
+  body                  String              @db.Text
+  pseudonym             String?
+  reasonTag             ReviewReasonTag?
+  difficultyRating      Int
+  workloadRating        Int
+  usefulnessRating      Int
+  recommendationRating  Int
+  averageWeeklyHours    Float?
+  lecturesUseful        Boolean?
+  attendanceImportant   Boolean?
+  hardestPart           String?
+  advice                String?
+  tags                  CourseFeedbackTag[]
+  upvoteCount           Int                 @default(0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  course                Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes                 CourseReviewVote[]
+}
+
+model CourseReviewVote {
+  id            String       @id @default(cuid())
+  reviewId      String
+  userId        String
+  isHelpful     Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  review        CourseReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+}
+
+model CourseDiscussionPost {
+  id            String                    @id @default(cuid())
+  courseId      String
+  userId        String
+  title         String
+  body          String                    @db.Text
+  upvoteCount   Int                       @default(0)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  course        Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments      CourseDiscussionComment[]
+}
+
+model CourseDiscussionComment {
+  id            String                @id @default(cuid())
+  postId        String
+  userId        String
+  body          String                @db.Text
+  parentId      String?
+  upvoteCount   Int                   @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  post          CourseDiscussionPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent        CourseDiscussionComment? @relation("DiscussionCommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies       CourseDiscussionComment[] @relation("DiscussionCommentReplies")
+}
+
+model UserBlock {
+  id             String   @id @default(cuid())
+  blockerId      String
+  blockedUserId  String
+  reason         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  blocker        User     @relation("BlockingUser", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedUser    User     @relation("BlockedUser", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedUserId])
+}
+
+model ContentReport {
+  id               String           @id @default(cuid())
+  reporterId       String
+  reportedUserId   String?
+  targetType       ReportTargetType
+  targetId         String
+  reason           String
+  notes            String?          @db.Text
+  status           ReportStatus     @default(OPEN)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  reporter         User             @relation("FiledReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser     User?            @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+}
