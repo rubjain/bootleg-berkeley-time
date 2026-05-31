@@ -808,3 +808,31 @@ model ContentReport {
   reporter         User             @relation("FiledReports", fields: [reporterId], references: [id], onDelete: Cascade)
   reportedUser     User?            @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
 }
+
+enum BerkeleySyncRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  PAUSED
+}
+
+model BerkeleySyncRun {
+  id                      String                @id @default(cuid())
+  schoolSlug              String
+  status                  BerkeleySyncRunStatus @default(RUNNING)
+  phase                   String
+  discoveredProgramCount  Int                   @default(0)
+  discoveredCourseCount   Int                   @default(0)
+  programsSynced          Int                   @default(0)
+  coursesImported         Int                   @default(0)
+  departmentOffset        Int                   @default(0)
+  programOffset           Int                   @default(0)
+  courseOffset            Int                   @default(0)
+  checkpointJson          Json?
+  notes                   String?               @db.Text
+  startedAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  completedAt             DateTime?
+
+  @@index([schoolSlug, status])
+}

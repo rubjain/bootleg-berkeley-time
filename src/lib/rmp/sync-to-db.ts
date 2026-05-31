@@ -4,19 +4,34 @@ import { getInstructorRmpProfessorId } from "@/lib/prisma-instructor";
 import { prisma } from "@/lib/prisma";
 import { lookupLiveRmpRating } from "@/lib/rmp/service";
 
+const RMP_REQUEST_DELAY_MS = 1000;
+
 export type RmpSyncResult = {
   scanned: number;
   synced: number;
   skipped: number;
   errors: string[];
+  cursor?: string;
 };
 
-export async function syncInstructorRmpRatings(input?: { slugs?: string[]; limit?: number }): Promise<RmpSyncResult> {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function syncInstructorRmpRatings(input?: {
+  slugs?: string[];
+  limit?: number;
+  cursor?: string;
+  rateLimitMs?: number;
+}): Promise<RmpSyncResult> {
+  const rateLimitMs = input?.rateLimitMs ?? RMP_REQUEST_DELAY_MS;
   const instructors = await prisma.instructor.findMany({
     where: input?.slugs?.length ? { slug: { in: input.slugs } } : undefined,
     take: input?.limit,
+    cursor: input?.cursor ? { id: input.cursor } : undefined,
+    skip: input?.cursor ? 1 : undefined,
     include: { department: true },
-    orderBy: { name: "asc" }
+    orderBy: { id: "asc" }
   });
 
   const result: RmpSyncResult = {
@@ -26,7 +41,11 @@ export async function syncInstructorRmpRatings(input?: { slugs?: string[]; limit
     errors: []
   };
 
-  for (const instructor of instructors) {
+  for (const [index, instructor] of instructors.entries()) {
+    if (index > 0) {
+      await sleep(rateLimitMs);
+    }
+
     try {
       const alias = instructorRmpAliases[instructor.slug];
       const live = await lookupLiveRmpRating({
@@ -72,7 +91,66 @@ export async function syncInstructorRmpRatings(input?: { slugs?: string[]; limit
         `${instructor.slug}: ${error instanceof Error ? error.message : "sync failed"}`
       );
     }
+
+    result.cursor = instructor.id;
   }
 
   return result;
+}
+
+export async function syncRmpForSchool(input?: {
+  schoolSlug?: string;
+  batchSize?: number;
+  maxBatches?: number;
+}): Promise<RmpSyncResult & { batches: number }> {
+  const batchSize = input?.batchSize ?? 50;
+  const maxBatches = input?.maxBatches ?? 10;
+  let cursor: string | undefined;
+  let totalScanned = 0;
+  let totalSynced = 0;
+  let totalSkipped = 0;
+  const errors: string[] = [];
+  let batches = 0;
+
+  for (let batch = 0; batch < maxBatches; batch += 1) {
+    const school = await prisma.school.findUnique({
+      where: { slug: input?.schoolSlug ?? "uc-berkeley" },
+      select: { id: true }
+    });
+    if (!school) break;
+
+    const instructors = await prisma.instructor.findMany({
+      where: { schoolId: school.id },
+      take: batchSize,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : undefined,
+      orderBy: { id: "asc" },
+      select: { slug: true }
+    });
+
+    if (!instructors.length) break;
+
+    const result = await syncInstructorRmpRatings({
+      slugs: instructors.map((item) => item.slug),
+      rateLimitMs: RMP_REQUEST_DELAY_MS
+    });
+
+    totalScanned += result.scanned;
+    totalSynced += result.synced;
+    totalSkipped += result.skipped;
+    errors.push(...result.errors);
+    cursor = result.cursor;
+    batches += 1;
+
+    if (instructors.length < batchSize) break;
+  }
+
+  return {
+    scanned: totalScanned,
+    synced: totalSynced,
+    skipped: totalSkipped,
+    errors,
+    cursor,
+    batches
+  };
 }

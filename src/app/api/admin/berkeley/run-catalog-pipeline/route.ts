@@ -11,9 +11,11 @@ const pipelineSchema = z.object({
   syncPrograms: z.boolean().optional(),
   importCourses: z.boolean().optional(),
   maxDepartments: z.number().int().positive().max(250).optional(),
-  maxProgramPages: z.number().int().positive().max(200).optional(),
-  maxCoursePages: z.number().int().positive().max(5000).optional(),
-  departmentCodes: z.array(z.string().min(1)).optional()
+  maxProgramPages: z.number().int().positive().max(2000).optional(),
+  maxCoursePages: z.number().int().positive().max(10000).optional(),
+  full: z.boolean().optional(),
+  resumeRunId: z.string().optional(),
+  syncRmp: z.boolean().optional()
 });
 
 export async function POST(request: NextRequest) {
@@ -25,9 +27,15 @@ export async function POST(request: NextRequest) {
       includeDepartmentCoursePages: payload.includeDepartmentCoursePages ?? true,
       scanProgramPagesForCourses: payload.scanProgramPagesForCourses ?? true,
       syncPrograms: payload.syncPrograms ?? true,
-      importCourses: payload.importCourses ?? true
+      importCourses: payload.importCourses ?? true,
+      syncRmp: payload.syncRmp ?? false
     });
-    return NextResponse.json({ result });
+    return NextResponse.json({
+      discovery: result.discovery,
+      programSync: result.programSync,
+      courseImport: result.courseImport,
+      syncRunId: result.syncRunId
+    });
   } catch (error) {
     return NextResponse.json(
       {

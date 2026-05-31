@@ -9,7 +9,9 @@ const discoverSchema = z.object({
   includeDepartmentCoursePages: z.boolean().optional(),
   scanProgramPagesForCourses: z.boolean().optional(),
   maxDepartments: z.number().int().positive().max(250).optional(),
-  maxProgramPages: z.number().int().positive().max(200).optional(),
+  maxProgramPages: z.number().int().positive().max(2000).optional(),
+  full: z.boolean().optional(),
+  programBfsDepth: z.number().int().positive().max(5).optional(),
   departmentCodes: z.array(z.string().min(1)).optional()
 });
 

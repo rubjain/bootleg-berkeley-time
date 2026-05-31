@@ -7,6 +7,7 @@ import { CommunityModerationReports } from "@/components/community-moderation-re
 import { ImportPreviewForm } from "@/components/import-preview-form";
 import { RmpSyncForm } from "@/components/rmp-sync-form";
 import { PageShell } from "@/components/page-shell";
+import { BerkeleyCoveragePanel } from "@/components/berkeley-coverage-panel";
 import { previewBerkeleyFullCourseImport } from "@/lib/berkeley-importer";
 import { getPrograms } from "@/lib/repositories";
 import { requireAdminPage } from "@/lib/auth/admin";
@@ -48,6 +49,9 @@ export default async function AdminImportsPage() {
         Live Berkeley detail pages are syncable directly from the public catalog. Coverage reporting is surfaced here explicitly when catalog enumeration endpoints are unavailable from this environment.
       </div>
 
+      <div className="mb-6">
+        <BerkeleyCoveragePanel />
+      </div>
       <div className="mb-6">
         <ImportPreviewForm />
       </div>

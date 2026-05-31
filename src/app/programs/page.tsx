@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import { ProgramCard } from "@/components/program-card";
 import { ProgramFilters } from "@/components/program-filters";
 import { PageShell } from "@/components/page-shell";
+import { DataCoverageBanner } from "@/components/data-coverage-banner";
 import { getPrograms } from "@/lib/repositories";
+import { getBerkeleyOfficialCoverage } from "@/lib/berkeley-official-sync";
 
 type ProgramsPageProps = {
   searchParams?: Promise<{ q?: string; type?: string }>;
@@ -14,7 +16,10 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
     q: params?.q,
     type: params?.type as "MAJOR" | "MINOR" | "CERTIFICATE" | undefined
   };
-  const programs = await getPrograms(filters);
+  const [programs, coverage] = await Promise.all([
+    getPrograms(filters),
+    getBerkeleyOfficialCoverage().catch(() => null)
+  ]);
   const majors = programs.filter((program) => program.type === "MAJOR");
   const minors = programs.filter((program) => program.type === "MINOR");
   const certificates = programs.filter((program) => program.type === "CERTIFICATE");
@@ -28,6 +33,13 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       title="Major and minor requirement planning"
       description="Normalized official requirement data is stored in the database, versioned over time, and linked back to source pages so students can verify what is official versus inferred."
     >
+      {coverage ? (
+        <DataCoverageBanner
+          courseCount={coverage.localCourseCount}
+          programCount={coverage.localProgramCount}
+        />
+      ) : null}
+
       <div className="mb-8 rounded-3xl border border-[rgba(39,50,71,0.12)] bg-[rgba(255,252,246,0.78)] p-5 shadow-sm">
         <Suspense fallback={<p className="text-sm text-[#6a7383]">Loading filters...</p>}>
           <ProgramFilters />

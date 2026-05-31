@@ -5,6 +5,7 @@ import {
   importBerkeleyOfficialDepartments,
   syncBerkeleyOfficialPrograms
 } from "@/lib/berkeley-official-sync";
+import { syncInstructorRmpRatings } from "@/lib/rmp/sync-to-db";
 
 function readNumericFlag(args: string[], flag: string) {
   const match = args.find((arg) => arg.startsWith(`${flag}=`));
@@ -13,13 +14,22 @@ function readNumericFlag(args: string[], flag: string) {
   return Number.isFinite(value) ? value : undefined;
 }
 
+function readStringFlag(args: string[], flag: string) {
+  const match = args.find((arg) => arg.startsWith(`${flag}=`));
+  return match ? match.split("=")[1] : undefined;
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const maxCoursePages = readNumericFlag(args, "--course-limit");
-  const maxDepartments = readNumericFlag(args, "--department-limit");
-  const maxProgramPages = readNumericFlag(args, "--program-limit");
+  const full = args.includes("--full");
+  const maxCoursePages = full ? undefined : readNumericFlag(args, "--course-limit");
+  const maxDepartments = full ? undefined : readNumericFlag(args, "--department-limit");
+  const maxProgramPages = full ? undefined : readNumericFlag(args, "--program-limit");
   const skipDepartments = args.includes("--skip-departments");
   const useDiscoveryPipeline = args.includes("--discover");
+  const skipRmp = args.includes("--skip-rmp");
+  const resumeRunId = readStringFlag(args, "--resume-run-id");
+  const courseChunkSize = readNumericFlag(args, "--course-chunk");
   const programUrls = args.filter((arg) => !arg.startsWith("--"));
 
   const onProgress = (message: string) => {
@@ -32,12 +42,25 @@ async function main() {
       maxDepartments,
       maxProgramPages,
       maxCoursePages,
+      courseChunkSize,
+      full,
+      resumeRunId,
+      createSyncRun: full || Boolean(resumeRunId),
       syncPrograms: true,
       importCourses: true,
+      syncInstructors: true,
+      syncRmp: !skipRmp,
       onProgress
     });
+
+    let rmpSync;
+    if (!skipRmp) {
+      onProgress("Syncing instructor RMP ratings...");
+      rmpSync = await syncInstructorRmpRatings({ limit: full ? 500 : 100 });
+    }
+
     const coverage = await getBerkeleyOfficialCoverage({ refreshOfficialDepartmentCount: true });
-    console.log(JSON.stringify({ pipeline, coverage }, null, 2));
+    console.log(JSON.stringify({ pipeline, rmpSync, coverage }, null, 2));
     return;
   }
 

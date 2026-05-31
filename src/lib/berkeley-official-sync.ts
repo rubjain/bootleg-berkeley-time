@@ -145,9 +145,22 @@ export type BerkeleyOfficialCoverageReport = {
   localProgramCount: number;
   localMajorCount: number;
   localMinorCount: number;
+  localCertificateCount: number;
   officialDepartmentCount?: number;
   syncedProgramSourceCount: number;
+  parsedProgramSourceCount: number;
+  reviewRequiredProgramSourceCount: number;
+  supplementarySourceCount: number;
+  estimatedDepartmentCoveragePercent?: number;
   lastSyncedAt?: string | null;
+  latestSyncRun?: {
+    id: string;
+    status: string;
+    phase: string;
+    discoveredCourseCount: number;
+    coursesImported: number;
+    updatedAt: string;
+  } | null;
   officialCatalogEndpointStatus: "public_pages_only" | "search_endpoint_blocked";
   notes: string[];
 };
@@ -411,18 +424,8 @@ export function parseBerkeleyProgramRequirementDocument(sourceUrl: string, html:
 }
 
 export async function fetchOfficialHtml(sourceUrl: string) {
-  const response = await fetch(sourceUrl, {
-    headers: {
-      "User-Agent": "CourseMap-Berkeley-Official-Sync/0.2"
-    },
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch official Berkeley source: ${response.status}`);
-  }
-
-  return response.text();
+  const { fetchBerkeleyHtml } = await import("@/lib/berkeley-fetch");
+  return fetchBerkeleyHtml(sourceUrl);
 }
 
 export async function getBerkeleyOfficialDepartments(input?: { html?: string }) {
@@ -676,7 +679,7 @@ async function parseBerkeleyProgramPage(input: {
   };
 }
 
-async function syncProgramRequirements(input: {
+export async function syncProgramRequirements(input: {
   schoolId: string;
   programId: string;
   sourceUrl: string;
@@ -1016,27 +1019,70 @@ export async function getBerkeleyOfficialCoverage(input?: {
     throw new Error(`School not found for slug "${schoolSlug}"`);
   }
 
-  const [localDepartmentCount, localCourseCount, localProgramCount, localMajorCount, localMinorCount, syncedProgramSourceCount, latestSource] =
-    await Promise.all([
-      prisma.department.count({ where: { schoolId: school.id } }),
-      prisma.course.count({ where: { schoolId: school.id } }),
-      prisma.program.count({ where: { schoolId: school.id } }),
-      prisma.program.count({ where: { schoolId: school.id, type: ProgramType.MAJOR } }),
-      prisma.program.count({ where: { schoolId: school.id, type: ProgramType.MINOR } }),
-      prisma.requirementSource.count({
-        where: {
-          schoolId: school.id,
-          sourceUrl: {
-            contains: "undergraduate.catalog.berkeley.edu/programs/"
-          }
+  const [
+    localDepartmentCount,
+    localCourseCount,
+    localProgramCount,
+    localMajorCount,
+    localMinorCount,
+    localCertificateCount,
+    syncedProgramSourceCount,
+    parsedProgramSourceCount,
+    reviewRequiredProgramSourceCount,
+    supplementarySourceCount,
+    latestSource,
+    latestSyncRun
+  ] = await Promise.all([
+    prisma.department.count({ where: { schoolId: school.id } }),
+    prisma.course.count({ where: { schoolId: school.id } }),
+    prisma.program.count({ where: { schoolId: school.id } }),
+    prisma.program.count({ where: { schoolId: school.id, type: ProgramType.MAJOR } }),
+    prisma.program.count({ where: { schoolId: school.id, type: ProgramType.MINOR } }),
+    prisma.program.count({ where: { schoolId: school.id, type: ProgramType.CERTIFICATE } }),
+    prisma.requirementSource.count({
+      where: {
+        schoolId: school.id,
+        sourceUrl: {
+          contains: "undergraduate.catalog.berkeley.edu/programs/"
         }
-      }),
-      prisma.requirementSource.findFirst({
-        where: { schoolId: school.id },
-        orderBy: { lastSyncedAt: "desc" },
-        select: { lastSyncedAt: true }
-      })
-    ]);
+      }
+    }),
+    prisma.requirementSource.count({
+      where: {
+        schoolId: school.id,
+        parserStatus: "PARSED"
+      }
+    }),
+    prisma.requirementSource.count({
+      where: {
+        schoolId: school.id,
+        parserStatus: "REVIEW_REQUIRED"
+      }
+    }),
+    prisma.requirementSource.count({
+      where: {
+        schoolId: school.id,
+        sourceType: { in: ["DEPARTMENT_PAGE", "COLLEGE_PAGE", "SCHOOL_PAGE"] }
+      }
+    }),
+    prisma.requirementSource.findFirst({
+      where: { schoolId: school.id },
+      orderBy: { lastSyncedAt: "desc" },
+      select: { lastSyncedAt: true }
+    }),
+    prisma.berkeleySyncRun.findFirst({
+      where: { schoolSlug },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        phase: true,
+        discoveredCourseCount: true,
+        coursesImported: true,
+        updatedAt: true
+      }
+    }).catch(() => null)
+  ]);
 
   let officialDepartmentCount: number | undefined;
   if (input?.refreshOfficialDepartmentCount) {
@@ -1047,6 +1093,11 @@ export async function getBerkeleyOfficialCoverage(input?: {
     }
   }
 
+  const estimatedDepartmentCoveragePercent =
+    officialDepartmentCount && officialDepartmentCount > 0
+      ? Math.round((localDepartmentCount / officialDepartmentCount) * 100)
+      : undefined;
+
   return {
     schoolSlug,
     localDepartmentCount,
@@ -1054,13 +1105,29 @@ export async function getBerkeleyOfficialCoverage(input?: {
     localProgramCount,
     localMajorCount,
     localMinorCount,
+    localCertificateCount,
     officialDepartmentCount,
     syncedProgramSourceCount,
+    parsedProgramSourceCount,
+    reviewRequiredProgramSourceCount,
+    supplementarySourceCount,
+    estimatedDepartmentCoveragePercent,
     lastSyncedAt: latestSource?.lastSyncedAt?.toISOString() ?? null,
+    latestSyncRun: latestSyncRun
+      ? {
+          id: latestSyncRun.id,
+          status: latestSyncRun.status,
+          phase: latestSyncRun.phase,
+          discoveredCourseCount: latestSyncRun.discoveredCourseCount,
+          coursesImported: latestSyncRun.coursesImported,
+          updatedAt: latestSyncRun.updatedAt.toISOString()
+        }
+      : null,
     officialCatalogEndpointStatus: "search_endpoint_blocked",
     notes: [
       "Live Berkeley program and course detail pages are syncable from their embedded Nuxt payloads.",
-      "The Berkeley catalog search/export endpoints still return 302/404 from this environment, so full inventory enumeration is not yet available through the same official host."
+      "Programs index + department course listings + BFS are used for full inventory when search export is blocked.",
+      "Supplementary department major pages merge into catalog requirements with review for conflicts."
     ]
   };
 }

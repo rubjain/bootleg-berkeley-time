@@ -170,7 +170,7 @@ const rawMockCourses: RawMockCourse[] = [
 
 export const mockCourses: CourseDetail[] = rawMockCourses.map((course) => enrichMockCourse(course, rawMockCourses));
 
-export const mockPrograms: ProgramDetail[] = [
+const rawMockPrograms: Omit<ProgramDetail, "requirementSources">[] = [
   {
     id: "program_data_major",
     slug: "ucb-data-science-major",
@@ -470,6 +470,24 @@ export const mockPrograms: ProgramDetail[] = [
     ]
   }
 ];
+
+export const mockPrograms: ProgramDetail[] = rawMockPrograms.map((program) => ({
+  ...program,
+  requirementSources: program.sourceUrl
+    ? [
+        {
+          id: `mock-src-${program.slug}`,
+          sourceUrl: program.sourceUrl,
+          sourceType: "UNIVERSITY_CATALOG",
+          parserKey: "berkeley-undergraduate-catalog",
+          parserStatus: program.parserStatus ?? "PARSED",
+          confidence: program.sourceConfidence ?? "MEDIUM",
+          lastSyncedAt: null,
+          notes: null
+        }
+      ]
+    : []
+}));
 
 export const mockTerms: TermDetail[] = [
   {

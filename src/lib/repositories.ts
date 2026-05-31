@@ -148,7 +148,7 @@ export type CourseListFilters = {
   tone?: string;
 };
 
-export const COURSE_LIST_PAGE_SIZE = 12;
+export const COURSE_LIST_PAGE_SIZE = 24;
 
 export type CourseListPage = {
   courses: CourseSummary[];
@@ -1010,7 +1010,8 @@ export async function getProgramByIdOrSlug(idOrSlug: string): Promise<ProgramDet
     const item = await prisma.program.findFirst({
       where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
       include: {
-        requirementSources: { orderBy: { updatedAt: "desc" }, take: 1 },
+        department: true,
+        requirementSources: { orderBy: { updatedAt: "desc" } },
         requirementSets: {
           where: { isActive: true },
           take: 1,
@@ -1034,10 +1035,24 @@ export async function getProgramByIdOrSlug(idOrSlug: string): Promise<ProgramDet
       type: item.type,
       degreeLabel: item.degreeLabel ?? undefined,
       overview: item.overview,
-      sourceUrl: item.requirementSources[0]?.sourceUrl,
+      sourceUrl: item.requirementSources.find((source) =>
+        source.sourceUrl.includes("undergraduate.catalog.berkeley.edu/programs/")
+      )?.sourceUrl ?? item.requirementSources[0]?.sourceUrl,
       sourceConfidence: item.requirementSources[0]?.confidence,
       parserStatus: item.requirementSources[0]?.parserStatus,
+      departmentCode: item.department?.code,
+      departmentName: item.department?.name,
       unitMinimum: item.unitMinimum ?? undefined,
+      requirementSources: item.requirementSources.map((source) => ({
+        id: source.id,
+        sourceUrl: source.sourceUrl,
+        sourceType: source.sourceType,
+        parserKey: source.parserKey,
+        parserStatus: source.parserStatus,
+        confidence: source.confidence,
+        lastSyncedAt: source.lastSyncedAt?.toISOString() ?? null,
+        notes: source.notes
+      })),
       categories:
         item.requirementSets[0]?.categories.map((category) => ({
           id: category.id,
@@ -1058,7 +1073,9 @@ export async function getProgramByIdOrSlug(idOrSlug: string): Promise<ProgramDet
     };
   } catch (error) {
     if (!allowMockFallback()) throw error;
-    return mockPrograms.find((program) => program.id === idOrSlug || program.slug === idOrSlug) ?? null;
+    const mock = mockPrograms.find((program) => program.id === idOrSlug || program.slug === idOrSlug);
+    if (!mock) return null;
+    return { ...mock, requirementSources: mock.requirementSources ?? [] };
   }
 }
 

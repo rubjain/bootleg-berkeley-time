@@ -23,4 +23,18 @@ jobs:
       - run: npm ci
       - run: npm run prisma:generate
       - run: npx prisma migrate deploy
-      - run: npm run berkeley:sync:official -- --discover --department-limit=50 --course-limit=100 --program-limit=20
+
+      - name: Chunked catalog sync (day of week rotation)
+        run: |
+          DOW=$(date -u +%u)
+          case $DOW in
+            1) DEPT_CHUNK="--department-limit=60" ;;
+            2) DEPT_CHUNK="--department-limit=60" ;;
+            3) DEPT_CHUNK="--department-limit=57" ;;
+            4) DEPT_CHUNK="--program-limit=80 --course-limit=400" ;;
+            5) DEPT_CHUNK="--program-limit=80 --course-limit=400" ;;
+            6) DEPT_CHUNK="--program-limit=80 --course-limit=400" ;;
+            7) DEPT_CHUNK="--discover --full" ;;
+            *) DEPT_CHUNK="--department-limit=50 --course-limit=200 --program-limit=40" ;;
+          esac
+          npm run berkeley:sync:official -- --discover $DEPT_CHUNK

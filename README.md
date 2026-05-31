@@ -60,7 +60,27 @@ Protected routes (`/dashboard`, `/planner`, `/profile`, `/friends`, `/messages`,
 | `npm run build` | Production build |
 | `npm test` | Run unit tests (Vitest) |
 | `npm run berkeley:sync:official` | Sync official Berkeley catalog/programs |
-| `npm run berkeley:sync:official -- --discover` | Full discovery pipeline with optional limits |
+| `npm run berkeley:sync:official -- --discover` | Discovery pipeline (programs index + dept crawl + BFS) |
+| `npm run berkeley:sync:coursedog` | **Recommended** — import all courses/programs via Berkeley Coursedog API |
+| `npm run berkeley:sync:official -- --discover --full` | Uncapped HTML sync; checkpoints via `BerkeleySyncRun` |
+| `npm run berkeley:sync:official -- --discover --resume-run-id=<id>` | Resume a prior sync run |
+
+### Full Berkeley catalog sync
+
+Official data is pulled from [undergraduate.catalog.berkeley.edu](https://undergraduate.catalog.berkeley.edu) (courses, programs, requirements), with optional merges from department major pages and legacy guide pages. Rate My Professors uses the `ratemyprofessors-client` API (not scraping).
+
+```bash
+# Recommended: full catalog via Coursedog API (~15–30 min; requires DATABASE_URL)
+npm run berkeley:sync:coursedog
+
+# Legacy HTML crawl (catalog pages no longer embed course lists in SSR)
+npm run berkeley:sync:official -- --discover --department-limit=60 --course-limit=200 --program-limit=40
+
+# Supplementary dept/guide merge (after catalog programs exist)
+curl -X POST http://localhost:3100/api/admin/berkeley/sync-supplementary -H "Content-Type: application/json" -d "{\"limit\":25}"
+```
+
+Admin **Imports** page (`/admin/imports`) shows coverage metrics and **Run next chunk** / **Sync supplementary sources** actions.
 
 ## API surface
 

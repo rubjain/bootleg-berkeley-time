@@ -3,7 +3,7 @@ import { syncInstructorRmpRatings } from "@/lib/rmp/sync-to-db";
 
 export async function POST() {
   try {
-    const result = await syncInstructorRmpRatings({ limit: 30 });
+    const result = await syncInstructorRmpRatings({ limit: 100, rateLimitMs: 1000 });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

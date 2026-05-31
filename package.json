@@ -13,7 +13,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "berkeley:sync:official": "tsx scripts/sync-berkeley-official.ts"
+    "berkeley:sync:official": "tsx scripts/sync-berkeley-official.ts",
+    "berkeley:sync:coursedog": "tsx scripts/sync-berkeley-coursedog.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",

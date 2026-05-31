@@ -4,6 +4,8 @@ import { CourseCard } from "@/components/course-card";
 import { CourseFilters } from "@/components/course-filters";
 import { CoursePagination } from "@/components/course-pagination";
 import { PageShell } from "@/components/page-shell";
+import { DataCoverageBanner } from "@/components/data-coverage-banner";
+import { getBerkeleyOfficialCoverage } from "@/lib/berkeley-official-sync";
 import { COURSE_LIST_PAGE_SIZE, getCourseFilterOptions, getCoursesPage } from "@/lib/repositories";
 
 type CoursesPageProps = {
@@ -21,9 +23,10 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
   const requestedPage = Number(params?.page ?? "1");
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.floor(requestedPage) : 1;
 
-  const [coursePage, filterOptions] = await Promise.all([
+  const [coursePage, filterOptions, coverage] = await Promise.all([
     getCoursesPage(filters, page, COURSE_LIST_PAGE_SIZE),
-    getCourseFilterOptions()
+    getCourseFilterOptions(),
+    getBerkeleyOfficialCoverage().catch(() => null)
   ]);
 
   const paginationParams = {
@@ -39,6 +42,13 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
       title="Browse Berkeley courses with planning context"
       description="Search and filter by department, level, and data type. Every course links to grades, enrollment signals, and requirement mapping."
     >
+      {coverage ? (
+        <DataCoverageBanner
+          courseCount={coverage.localCourseCount}
+          programCount={coverage.localProgramCount}
+        />
+      ) : null}
+
       <div className="mb-8 rounded-3xl border border-[rgba(39,50,71,0.12)] bg-[rgba(255,252,246,0.78)] p-5 shadow-sm">
         <Suspense fallback={<p className="text-sm text-[#6a7383]">Loading filters...</p>}>
           <CourseFilters departments={filterOptions.departments} levels={filterOptions.levels} />

@@ -21,17 +21,31 @@ function buildHref(page: number, searchParams: CoursePaginationProps["searchPara
   return query ? `/courses?${query}` : "/courses";
 }
 
+function visiblePages(current: number, totalPages: number) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, current]);
+  for (let offset = -2; offset <= 2; offset += 1) {
+    const page = current + offset;
+    if (page >= 1 && page <= totalPages) pages.add(page);
+  }
+
+  return [...pages].sort((left, right) => left - right);
+}
+
 export function CoursePagination({ page, totalPages, total, searchParams }: CoursePaginationProps) {
   if (totalPages <= 1) return null;
 
-  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const pages = visiblePages(page, totalPages);
 
   return (
     <nav className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Course list pagination">
       <p className="text-sm text-[#6a7383]">
-        Page {page} of {totalPages} · {total} course{total === 1 ? "" : "s"} total
+        Page {page} of {totalPages} · {total.toLocaleString()} course{total === 1 ? "" : "s"} total
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Link
           href={buildHref(Math.max(1, page - 1), searchParams)}
           aria-disabled={page <= 1}
@@ -43,19 +57,25 @@ export function CoursePagination({ page, totalPages, total, searchParams }: Cour
         >
           Previous
         </Link>
-        {pages.map((pageNumber) => (
-          <Link
-            key={pageNumber}
-            href={buildHref(pageNumber, searchParams)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              pageNumber === page
-                ? "bg-[#243047] text-white"
-                : "bg-[rgba(255,252,246,0.9)] text-[#5a6273] ring-1 ring-[rgba(39,50,71,0.12)] hover:text-[#19212f]"
-            }`}
-          >
-            {pageNumber}
-          </Link>
-        ))}
+        {pages.map((pageNumber, index) => {
+          const prev = pages[index - 1];
+          const showEllipsis = prev !== undefined && pageNumber - prev > 1;
+          return (
+            <span key={pageNumber} className="flex items-center gap-2">
+              {showEllipsis ? <span className="px-1 text-sm text-[#9aa3b2]">…</span> : null}
+              <Link
+                href={buildHref(pageNumber, searchParams)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  pageNumber === page
+                    ? "bg-[#243047] text-white"
+                    : "bg-[rgba(255,252,246,0.9)] text-[#5a6273] ring-1 ring-[rgba(39,50,71,0.12)] hover:text-[#19212f]"
+                }`}
+              >
+                {pageNumber}
+              </Link>
+            </span>
+          );
+        })}
         <Link
           href={buildHref(Math.min(totalPages, page + 1), searchParams)}
           aria-disabled={page >= totalPages}

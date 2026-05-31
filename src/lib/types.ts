@@ -143,8 +143,22 @@ export type ProgramSummary = {
   parserStatus?: string;
 };
 
+export type ProgramRequirementSource = {
+  id: string;
+  sourceUrl: string;
+  sourceType: string;
+  parserKey?: string | null;
+  parserStatus: string;
+  confidence: string;
+  lastSyncedAt?: string | null;
+  notes?: string | null;
+};
+
 export type ProgramDetail = ProgramSummary & {
   unitMinimum?: number;
+  departmentCode?: string;
+  departmentName?: string;
+  requirementSources: ProgramRequirementSource[];
   categories: Array<{
     id: string;
     title: string;

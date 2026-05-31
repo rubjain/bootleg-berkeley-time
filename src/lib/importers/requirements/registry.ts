@@ -178,7 +178,27 @@ const berkeleyAcademicGuideImporter: RequirementImporter = {
   }
 };
 
-export const requirementImporters: RequirementImporter[] = [berkeleyAcademicGuideImporter];
+import { parseGenericDepartmentMajorPage } from "@/lib/importers/requirements/dept-parsers";
+
+const berkeleyDepartmentSiteImporter: RequirementImporter = {
+  key: "berkeley-department-site",
+  label: "Berkeley department major page",
+  supports(url) {
+    return (
+      /\.berkeley\.edu/i.test(url) &&
+      !url.includes("undergraduate.catalog.berkeley.edu") &&
+      !url.includes("guide.berkeley.edu")
+    );
+  },
+  parse({ sourceUrl, html }) {
+    return parseGenericDepartmentMajorPage(sourceUrl, html);
+  }
+};
+
+export const requirementImporters: RequirementImporter[] = [
+  berkeleyAcademicGuideImporter,
+  berkeleyDepartmentSiteImporter
+];
 
 export function resolveRequirementImporter(sourceUrl: string) {
   return requirementImporters.find((importer) => importer.supports(sourceUrl));
